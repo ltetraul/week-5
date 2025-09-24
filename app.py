@@ -5,7 +5,7 @@ from apputil import *
 # Load Titanic dataset
 df = pd.read_csv('https://raw.githubusercontent.com/leontoddjohnson/datasets/main/data/titanic.csv')
 
-st.write(
+st.write("Were children in third class more likely to survive than adult men in second class?"
 '''
 # Titanic Visualization 1
 
