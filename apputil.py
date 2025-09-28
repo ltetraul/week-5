@@ -1,6 +1,6 @@
 import pandas as pd
 import plotly.express as px
-
+import streamlit as st
 
 def add_age_category(data: pd.DataFrame) -> pd.DataFrame:
     """
@@ -73,4 +73,58 @@ def order_summary_table(data: pd.DataFrame) -> pd.DataFrame:
     summary["AgeCategory"] = pd.Categorical(summary["AgeCategory"], categories=age_order, ordered=True)
     return summary.sort_values(by=["Pclass", "Sex", "AgeCategory"]).reset_index(drop=True)
 
+#toggle charts
+chart_type = st.sidebar.radio(
+)
 
+def visualize_demographic(summary_table: pd.DataFrame):
+    """
+    Bar chart highlighting specific groups:
+    - Children in 3rd class
+    - Adult men in 2nd class
+    """
+    summary_table = summary_table.copy()
+    
+    #combine categories into a label
+    summary_table["Group"] = (
+        summary_table["Pclass"].astype(str) + " Class " +
+        summary_table["Sex"].str.capitalize() + " " +
+        summary_table["AgeCategory"].astype(str)
+    )
+
+    #highlight groups from the question
+    summary_table["Highlight"] = "Other"
+    summary_table.loc[
+        (summary_table["Pclass"] == 3) & 
+        (summary_table["AgeCategory"] == "Child"),
+        "Highlight"
+    ] = "Children 3rd Class"
+    summary_table.loc[
+        (summary_table["Pclass"] == 2) & 
+        (summary_table["AgeCategory"] == "Adult") &
+        (summary_table["Sex"] == "male"),
+        "Highlight"
+    ] = "Adult Men 2nd Class"
+
+    #bar chart with color based on highlighted groups
+    fig = px.bar(
+        summary_table,
+        x="Group",
+        y="survival_rate",
+        color="Highlight",
+        text="survival_rate",
+        title="Survival Rates by Class, Sex, and Age Group",
+        labels={"survival_rate": "Survival Rate", "Group": "Passenger Group"},
+        color_discrete_map={
+            "Children 3rd Class": "green",
+            "Adult Men 2nd Class": "red",
+            "Other": "lightgray"
+        }
+    )
+
+    #format bars
+    fig.update_traces(texttemplate="%{text:.0%}", textposition="outside")
+    fig.update_yaxes(tickformat=".0%", range=[0, 1])
+    fig.update_layout(xaxis_tickangle=-25, uniformtext_minsize=8, uniformtext_mode="hide")
+
+    return fig
