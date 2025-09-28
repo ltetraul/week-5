@@ -73,10 +73,6 @@ def order_summary_table(data: pd.DataFrame) -> pd.DataFrame:
     summary["AgeCategory"] = pd.Categorical(summary["AgeCategory"], categories=age_order, ordered=True)
     return summary.sort_values(by=["Pclass", "Sex", "AgeCategory"]).reset_index(drop=True)
 
-#toggle charts
-chart_type = st.sidebar.radio(
-)
-
 def visualize_demographic(summary_table: pd.DataFrame):
     """
     Bar chart highlighting specific groups:
@@ -121,10 +117,124 @@ def visualize_demographic(summary_table: pd.DataFrame):
             "Other": "lightgray"
         }
     )
+    return fig
 
-    #format bars
-    fig.update_traces(texttemplate="%{text:.0%}", textposition="outside")
-    fig.update_yaxes(tickformat=".0%", range=[0, 1])
-    fig.update_layout(xaxis_tickangle=-25, uniformtext_minsize=8, uniformtext_mode="hide")
+def add_family_size(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add family size column to the dataset.
+    """
+    df = data.copy()
+    df["FamilySize"] = df["SibSp"] + df["Parch"] + 1
+    return df
+    
+def group_by_family_size_and_class(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Group passengers by family size and passenger class
+    """
+    grouped = (
+        data.groupby(["FamilySize", "Pclass"])
+        .agg(
+            n_passengers=("PassengerId", "count"),
+            avg_fare=("Fare", "mean"),
+            min_fare=("Fare", "min"),
+            max_fare=("Fare", "max")
+            )
+        .reset_index()
+        )
+    return grouped
+    
+def generate_family_size_table(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate a table summarizing family size statistics by class.
+    """
+    grouped = group_by_family_size_and_class(data)
 
+    #sort by class and family size
+    sorted_table = grouped.sort_values(by=["Pclass", "FamilySize"]).reset_index(drop=True)
+    return sorted_table
+
+def last_names(data: pd.DataFrame) -> pd.Series:
+    """
+    Extract the last name of each passenger and return the count for each last name.
+    """
+    last_name_series = data["Name"].str.split(",").str[0]
+    return last_name_series.value_counts()
+
+def visualize_families(df: pd.DataFrame, top_n: int = 10) -> px.bar:
+    """
+    Visualize the largest families on board the Titanic.
+    """
+    #extract last names
+    df['LastName'] = df['Name'].str.split(",").str[0].str.strip()
+    
+    #count passengers and calculate average survival rate per family
+    family_summary = df.groupby('LastName').agg(
+        family_size=('Name', 'count'),
+        survival_rate=('Survived', 'mean')
+    ).reset_index()
+    
+    #take top largest families
+    top_families = family_summary.sort_values(by='family_size', ascending=False).head(top_n)
+    
+    #create bar chart
+    fig2 = px.bar(
+        top_families,
+        x='LastName',
+        y='family_size',
+        color='survival_rate',
+        color_continuous_scale='Viridis',
+        text='family_size',
+        title=f"Top {top_n} Largest Families on the Titanic",
+        labels={'LastName': 'Family Last Name', 'family_size': 'Number of Passengers', 'survival_rate': 'Average Survival Rate'}
+    )
+    fig2.update_traces(textposition='outside')
+    fig2.update_layout(xaxis_tickangle=-45) 
+    return fig2
+
+def determine_age_division(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a column 'older_passenger' indicating whether a passenger's age
+    is above the median age for their passenger class.
+    """
+    df = data.copy()
+
+    #calculate median age per Pclass
+    class_medians = df.groupby("Pclass")["Age"].transform("median")
+
+    #compare passenger age with class median
+    df["older_passenger"] = df["Age"] > class_medians
+    return df
+
+def visualize_age_division(data: pd.DataFrame) -> px.bar:
+    """
+    Visualize survival rates by passenger class and if
+    a passenger was older than their class median.
+    """
+    df = determine_age_division(data)
+
+    #aggregate survival stats
+    summary = (
+        df.groupby(["Pclass", "older_passenger"])
+        .agg(
+            n_passengers=("PassengerId", "count"),
+            survival_rate=("Survived", "mean")
+        )
+        .reset_index()
+    )
+
+    #create bar chart
+    fig = px.bar(
+        summary,
+        x="Pclass",
+        y="survival_rate",
+        color="older_passenger",
+        text="n_passengers",
+        barmode="group",
+        title="Survival Rates by Class and Age Division",
+        labels={
+            "Pclass": "Passenger Class",
+            "survival_rate": "Survival Rate",
+            "older_passenger": "Older than Class Median?"
+        }
+    )
     return fig
